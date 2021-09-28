@@ -78,7 +78,7 @@ for f in carpeta:
     if ext == '.mp4':
         nombres.append(name + ext)
         
-## ############################
+###############################
 ##### Cambiar para cambiar el vídeo a procesar
 n = 0
 ###############################
