@@ -122,7 +122,7 @@ writer.writerow(['Tiempo_min','Vis_fuera_m','Vis_dentro_m','Mejora_m'])
 
 while(video.isOpened()):
     nframe = nframe+1
-    rval, imagen = video.read()
+    rval, imagen = video.read() # video.read obtiene el frame actual y avanza al siguiente
     if ((rval == True)):
         im = cv2.resize(imagen, (ancho, alto))
         im_copia = im.copy()
