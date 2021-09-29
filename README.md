@@ -9,7 +9,7 @@ Isto inclúe, entre outros, programas de graficado, de análise de espectrometr�
 
 **fractal:** tbc
 
-**graficos_por_visib:** Programa estándar de graficado, importa automáticamente os arquivos procesados do espectrómetro dende a carpeta de traballo e gárdaos en dataframes en Pandas. Debuxa os gráficos de distribución de partícula clasificados pola visibilidade. Formato Jupyter Python Notebook.
+**graficos_por_visib:** Programa estándar de graficado, importa automáticamente os arquivos procesados do espectrómetro dende a carpeta de traballo e gárdaos en dataframes en Pandas. Debuxa os gráficos de distribución de partícula dos ensaios agrupados pola súa visibilidade. Paquetes principais: pandas, matplotlib. Formato Jupyter Python Notebook.
 
 **machine_niebla:** Aplicacións de aprendizaxe automática ao análise das néboas do Fiouco - predicción mediante bosques aleatorios e gradient-boosters, clasificación en clústeres mediante algoritmo k-fold, etc. Paquetes principais: sklearn. Formato Jupyter Python Notebook.
 
