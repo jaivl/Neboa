@@ -3,16 +3,16 @@ Compendio de códigos utilizados no proxecto de dispersión de néboa do GSJ (no
 
 Isto inclúe, entre outros, programas de graficado, de análise de espectrometría e volcado en formato vídeo, ou de aprendizaxe automático.
 
-**ajuste_curva:** tbc
+**ajuste_curva:** Intenta axustar as curvas de granulometría obtidas nos ensaios a unha distribución conocida (Gamma, lognormal). Paquetes principais: stats. Formato Jupyter Python Notebook.
 
-**analizador_video:** tbc Paquetes principais: opencv (cv2). Formato iPython.
+**analizador_video:** Analiza a visibilidade teórica dos vídeos de ensaio dispoñibles, exporta un vídeo acelerado x8 anotando a visibilidade instantánea cada 10 segundos, ademáis dunha táboa cos resultados. Paquetes principais: opencv (cv2). Formato iPython.
 
-**fractal:** tbc
+**fractal:** Calcula a distribución fractal para cada minuto de ensaios de só-néboa, exporta gráficos duales cos gráficos log/log e a evolución da dimensión fractal no tempo. Paquetes principais: pandas, matplotlib, seaborn. Formato Jupyter Python Notebook.
 
 **graficos_por_visib:** Programa estándar de graficado, importa automáticamente os arquivos procesados do espectrómetro dende a carpeta de traballo e gárdaos en dataframes en Pandas. Debuxa os gráficos de distribución de partícula dos ensaios agrupados pola súa visibilidade. Paquetes principais: pandas, matplotlib. Formato Jupyter Python Notebook.
 
 **machine_niebla:** Aplicacións de aprendizaxe automática ao análise das néboas do Fiouco - predicción mediante bosques aleatorios e gradient-boosters, clasificación en clústeres mediante algoritmo k-fold, etc. Paquetes principais: sklearn. Formato Jupyter Python Notebook.
 
-**rosinrammler:** Calcula a distribución de Rosin-Rammler para cada minuto de ensaios de só-néboa, exporta gráficos duales coas pendentes do gráfico loglog/log e coa distribución teórica. Paquetes principais: pandas, matplotlib, seaborn. Formato Jupyter Python Notebook.
+**rosinrammler:** Calcula a distribución de Rosin-Rammler para cada minuto de ensaios de só-néboa, exporta gráficos duales coas pendentes do gráfico log/loglog (sí, dous logs no eixo y) e coa distribución teórica. Paquetes principais: pandas, matplotlib, seaborn. Formato Jupyter Python Notebook.
 
 **video_distribucion:** tbc
