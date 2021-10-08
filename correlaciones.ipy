@@ -1,0 +1,450 @@
+# Autor: Jairo Valea L√≥pez
+#
+# ps√©
+
+# Importado de librer√≠as habituales
+
+import os
+import csv
+import pandas as pd
+import numpy as np
+import math
+import scipy.stats as stats
+import datetime # formato fecha
+import seaborn as sns
+import matplotlib.patches as mpatches
+import matplotlib.dates as mdates
+from IPython.utils import io
+from scipy.stats import spearmanr
+from natsort import natsorted, index_natsorted
+from matplotlib import pyplot as plt
+from matplotlib import gridspec
+from tqdm import tqdm, trange # barra de progreso
+
+
+def promedio(lst):
+    return sum(lst) / len(lst)
+    
+def construyebase(ruta):
+    carpeta = natsorted(os.listdir(ruta_proces))
+    procesados = []
+    nombres = []
+    
+    for f in carpeta:
+        name, ext = os.path.splitext(f)
+        if ((ext == '.txt') & (name[0] == 'E')):
+            procesados.append(pd.read_csv(ruta_proces + name + ext, delimiter = ",", decimal = "."))
+            nombres.append(name + ext)
+    for i in range(len(nombres)):
+        procesados[i] = procesados[i].apply(lambda col:pd.to_numeric(col, errors='coerce'))
+        procesados[i]['Ensayo'] = nombres[i][6:-14]
+    procesados_total = pd.concat(procesados,ignore_index = True)
+    g = open(ruta_proces + 'database_todo.csv', 'w', encoding='UTF8', newline='')
+    writer = csv.writer(g, delimiter=';')
+    writer.writerow(procesados_total.columns)
+    for i in range(len(procesados_total)):
+        writer.writerow(procesados_total.iloc[i,:])
+    g.close()
+
+def correlaciones(datos, modo = 0):
+    if ((modo == 8) | (modo == '8.')):
+        datos.drop(datos[datos['Ensayo'].astype(str).str[0] != '8'].index, inplace = True)
+    if ((modo == 'cs') | (modo == 'CS')):
+        datos.drop(datos[datos['Ensayo'].astype(str).str[0:2] != 'cs'].index, inplace = True)
+    if (modo == 9):
+        print('')
+
+    correl = []; orden = []
+    for i in range(len(datos.columns)):
+        correl.append(spearmanr(datos.iloc[:,i],datos['Visibilidad corregida (m)']))
+        orden.append(abs(correl[i][0]))
+
+    indices = index_natsorted(orden, reverse = True)
+    f = open(ruta_proces + 'correlaciones_'+ str(modo) + '.txt','w')
+    f.write('Correlaci√≥n de Spearman\n')
+    f.write('N√∫mero de datos = ' + str(len(datos)) + '\n')
+    f.write('Ensayos: ' + str(datos['Ensayo'].unique()) +'\n\n')
+    for i in indices:
+        f.write(f"{datos.columns[i]:<28}" + 'r^2 = ' + f"{round(correl[i][0],4):<8}" + ' | pvalor = ' + str(round(correl[i][1],4))+'\n')
+    f.close()
+    return datos
+
+def abline(slope, intercept):
+    """Plot a line from slope and intercept"""
+    x_vals = np.array(plt.gca.get_xlim())
+    y_vals = intercept + slope * x_vals
+    plt.gca.plot(x_vals, y_vals, '--', color = 'red')
+    
+def find_nearest(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return array[idx]
+
+def localizardiam(ac, d):
+    diams_g = np.array([2.13,2.289,2.46,2.643,2.841,3.053,3.28,3.525,3.788,4.071,4.374,4.701,5.051,5.428,5.833,6.268,6.736,7.239,
+                   7.779,8.359,8.983,9.653,10.373,11.147,11.979,12.872,13.833,14.865,15.974,17.165,18.446])
+    cerca = find_nearest(ac, d)
+    res = np.where(ac == cerca)[0][0]
+    if (cerca > d):
+        while (ac[res] == ac[res-1]):
+            res = res-1        
+        diam_tipo = diams_g[res]-((diams_g[res] - diams_g[res-1])*(ac[res] - d) / (ac[res] - ac[res-1]))
+    if (cerca < d):
+        while (ac[res] == ac[res+1]):
+            res = res+1
+        diam_tipo = diams_g[res+1]-((diams_g[res+1] - diams_g[res])*(ac[res+1] - d) / (ac[res+1] - ac[res]))
+    if (cerca == d):
+        diam_tipo = diams_g[res]
+    return diam_tipo
+
+def rosinrammler(ac, m):
+    diams_g = np.array([2.13,2.289,2.46,2.643,2.841,3.053,3.28,3.525,3.788,4.071,4.374,4.701,5.051,5.428,5.833,6.268,6.736,7.239,
+                   7.779,8.359,8.983,9.653,10.373,11.147,11.979,12.872,13.833,14.865,15.974,17.165,18.446])
+    x = np.linspace (0, 20, 100)
+    cerca = find_nearest(ac, 0.632)
+    res = np.where(ac == cerca)[0][0]
+    if (cerca > 0.632):
+        while (ac[res] == ac[res-1]):
+            res = res-1        
+        diam_tipo = diams_g[res]-((diams_g[res] - diams_g[res-1])*(ac[res] - 0.632) / (ac[res] - ac[res-1]))
+    if (cerca < 0.632):
+        while (ac[res] == ac[res+1]):
+            res = res+1
+        diam_tipo = diams_g[res+1]-((diams_g[res+1] - diams_g[res])*(ac[res+1] - 0.632) / (ac[res+1] - ac[res]))
+    if (cerca == 0.632):
+        diam_tipo = diams_g[res]
+    F = 1 - 2.71828**(-(x/diam_tipo)**m)
+    return F
+
+#########################
+### FunciÛn descontinuada
+#########################
+
+def graficado(datos, modo = '8.', grafico = 'gra-vis', grupos = 5, vmax = 2000, normalizado = False, rampa = False,
+              v_rampa = 'Prec_mensual', alfa = 0.3):
+    if ((modo == 8) | (modo == '8.')):
+        datos.drop(datos[datos['Ensayo'].astype(str).str[0] != '8'].index, inplace = True)
+    if ((modo[0:2] == 'cs') | (modo[0:2] == 'CS')):
+        datos.drop(datos[datos['Ensayo'].astype(str).str[0:2] != 'cs'].index, inplace = True)
+        if ((modo[3:] == '10min') | (modo[3:] == '10 min')):
+            datos.drop(datos[datos['Tiempo (min)'] > 9.5].index, inplace = True)
+        if ((modo[3:] == 'generada') | (modo[3:] == 'gen')):
+            datos.drop(datos[(datos['Tiempo (min)'] > 9.5) & (datos['Tiempo (min)'] < 30.5)].index, inplace = True)
+    if ((modo[0:2] == '10') | (modo[0:2] == '!8') | (modo[0:2] == 'n8')):
+        datos.drop(datos[datos['Ensayo'].astype(str).str[0] == '8'].index, inplace = True)
+        if ((modo[3:] == '10min') | (modo[3:] == '10 min')):
+            datos.drop(datos[datos['Tiempo (min)'] > 9.5].index, inplace = True)
+        if ((modo[3:] == 'generada') | (modo[3:] == 'gen')):
+            datos.drop(datos[(datos['Tiempo (min)'] < 9.5) | (datos['Tiempo (min)'] > 30.5)].index, inplace = True)
+    if (modo[0:4] == 'solo'):
+        datos.drop(datos[datos['Ensayo'] != modo[5:]].index, inplace = True)
+    
+    datos.drop(datos[datos['Visibilidad corregida (m)'] > vmax].index, inplace = True)
+    if rampa:
+        color_labels = natsorted(datos[v_rampa].unique())
+        rgb_values = sns.color_palette("ch:start=.2,rot=-.3", len(color_labels)) # cubehelix // alternativa: 'crest'
+        #colorinchos = ListedColormap(sns.color_palette(rgb_values).as_hex())
+        color_map = dict(zip(color_labels, rgb_values))
+        hand = []
+        for i in range(len(rgb_values)):
+            hand.append(mpatches.Patch(color=rgb_values[i], label=str(color_labels[i])))
+    else:
+        color_map = 'blue'
+    if ((grafico[0:3] == 'gra') | (grafico[0:3] == 'mas')):
+        diams_g = np.array([2.13,2.289,2.46,2.643,2.841,3.053,3.28,3.525,3.788,4.071,4.374,4.701,5.051,5.428,5.833,6.268,6.736,7.239,
+                   7.779,8.359,8.983,9.653,10.373,11.147,11.979,12.872,13.833,14.865,15.974,17.165,18.446])
+        diams = np.array([0.104,0.111,0.12,0.129,0.138,0.149,0.16,0.172,0.184,0.198,0.213,0.229,0.246,0.264,0.284,0.305,0.328,0.352,0.379,
+                 0.407,0.437,0.47,0.505,0.543,0.583,0.627,0.674,0.724,0.778,0.836,0.898,0.965,1.037,1.115,1.198,1.287,1.383,1.486,
+                 1.597,1.717,1.845,1.982,2.13,2.289,2.46,2.643,2.841,3.053,3.28,3.525,3.788,4.071,4.374,4.701,5.051,5.428,5.833,
+                 6.268,6.736,7.239,7.779,8.359,8.983,9.653,10.373,11.147,11.979,12.872,13.833,14.865,15.974,17.165,18.446])
+        dx = np.array([0.007,0.008,0.009,0.009,0.01,0.011,0.011,0.012,0.013,0.014,0.015,0.016,0.018,0.019,0.02,0.022,0.024,0.025,0.027
+              ,0.029,0.031,0.034,0.036,0.039,0.042,0.045,0.048,0.052,0.056,0.06,0.065,0.069,0.075,0.08,0.086,0.093,0.099,0.107,0.115
+              ,0.123,0.133,0.143,0.153,0.165,0.177,0.19,0.204,0.22,0.236,0.254,0.272,0.293,0.315,0.338,0.363,0.39,0.42,0.451,0.484
+              ,0.521,0.559,0.601,0.646,0.694,0.746,0.802,0.862,0.926,0.995,1.069,1.149,1.235,1.327])
+        limites = []
+        vols = (np.pi/8)*(diams**3)
+        if (grafico[4:7] == 'vis'):
+            for v in range(grupos):
+                limites.append(round(np.quantile(datos['Visibilidad corregida (m)'],v/grupos),1))
+            limites.append(2000)
+            for i in range(grupos):
+                fig, ax = plt.subplots(figsize = (12,7))
+                vis = datos[(datos['Visibilidad corregida (m)'] >= limites[i]) & (datos['Visibilidad corregida (m)'] < limites[i+1])]
+                if normalizado:
+                    suma_gruesos = []
+                    gruesos = np.array(vis.iloc[:,54:85])
+                    for n in range(gruesos.shape[0]): # el mismo para ambos
+                        suma_gruesos.append(np.sum(gruesos[n,:]))
+                    densidad_gruesos = np.empty((gruesos.shape[0],gruesos.shape[1]))
+                    for k in range(gruesos.shape[0]):
+                        for m in range(gruesos.shape[1]):
+                            densidad_gruesos[k,m] = (1/suma_gruesos[k])*(gruesos[k,m])*(1/dx[m+42])
+                    ax.set_xlim(2,18);ax.set_ylim(0,0.6); ax.grid(True)
+                    media = []
+                    for k in range(31):
+                        media.append(promedio(densidad_gruesos[:,k]))
+                    ax.set_ylabel('dN/N/dX')
+                else:
+                    gruesos = np.array(vis.iloc[:,54:85])
+                    densidad_gruesos = np.empty((gruesos.shape[0],gruesos.shape[1]))
+                    if (grafico[0:3] == 'mas'):
+                        ax.set_ylabel('Masa (ug/cm3)'); ax.set_ylim(0,10000)
+                        for k in range(gruesos.shape[0]):
+                            for m in range(gruesos.shape[1]):
+                                densidad_gruesos[k,m] = (vols[m+42])*(gruesos[k,m])*(1/dx[m+42])
+                    else:
+                        ax.set_ylabel('N * dN/N/dX'); ax.set_ylim(0,150)
+                        for k in range(gruesos.shape[0]):
+                            for m in range(gruesos.shape[1]):
+                                densidad_gruesos[k,m] = (gruesos[k,m])*(1/dx[m+42])
+                    ax.set_xlim(2,18); ax.grid(True)
+                    media = []
+                    for k in range(31):
+                        media.append(promedio(densidad_gruesos[:,k]))
+                    masa_media = 'Masa media = ' + str(int(np.sum(media))) + ' ug/cm3'
+                    ax.annotate(masa_media, xy = (10,9750), ha = 'center')
+                for j in range(len(densidad_gruesos)):
+                    if rampa:
+                        ax.plot(diams_g, densidad_gruesos[j], alpha = alfa, lw = 0.5, color = vis[v_rampa].map(color_map)[vis.index[j]])
+                    else:
+                        ax.plot(diams_g, densidad_gruesos[j], alpha = alfa, lw = 0.5, color = 'blue')
+                ax.plot(diams_g, media, alpha = 1, lw = 2, color = 'red')
+                ax.set_xlabel('Di·metro (um)')
+                if rampa:
+                    ax.legend(handles = hand, title=str(v_rampa), loc = 'upper right')
+                ax.set_title(str(modo) + ', visibilidad ' + str(limites[i]) + ' a ' + str(limites[i+1]) + ' m')
+    
+
+    return '0'
+                #for k in datos_cp.index:
+                #    tiempos.append(datetime.datetime.strptime(datos_cp['Hora'][k], '%d/%m/%Y %H:%M'))
+                #axes[i,j].xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
+
+
+#######################
+#######################
+### FunciÛn principal
+#######################
+#######################
+
+def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/07/2021', 
+                   vmax = 2000, rangos = []):
+    
+    #####################
+    ####  Men˙ y filtrado
+    #####################
+    
+    vector = ['particulas','superficie','volumen']
+    
+    inicio = datetime.datetime.strptime(inicio,'%d/%m/%Y')
+    fin = datetime.datetime.strptime(fin,'%d/%m/%Y')
+    for i in datos.index:
+        datos.loc[i,'Hora'] = datetime.datetime.strptime(datos.loc[i,'Hora'], '%d/%m/%Y %H:%M')
+    if ((ensayos == 8) | (ensayos == '8.')):
+        datos.drop(datos[datos['Ensayo'].astype(str).str[0] != '8'].index, inplace = True)
+    if ((ensayos[0:2] == 'cs') | (ensayos[0:2] == 'CS')):
+        datos.drop(datos[datos['Ensayo'].astype(str).str[0:2] != 'cs'].index, inplace = True)
+        if ((ensayos[3:] == '10min') | (ensayos[3:] == '10 min')):
+            datos.drop(datos[datos['Tiempo (min)'] > 9.5].index, inplace = True)
+        if ((ensayos[3:] == 'generada') | (ensayos[3:] == 'gen')):
+            datos.drop(datos[(datos['Tiempo (min)'] > 9.5) & (datos['Tiempo (min)'] < 30.5)].index, inplace = True)
+    if ((ensayos[0:2] == '10') | (ensayos[0:2] == '!8') | (ensayos[0:2] == 'n8')):
+        datos.drop(datos[datos['Ensayo'].astype(str).str[0] == '8'].index, inplace = True)
+        if ((ensayos[3:] == '10min') | (ensayos[3:] == '10 min')):
+            datos.drop(datos[datos['Tiempo (min)'] > 9.5].index, inplace = True)
+        if ((ensayos[3:] == 'generada') | (ensayos[3:] == 'gen')):
+            datos.drop(datos[(datos['Tiempo (min)'] < 9.5) | (datos['Tiempo (min)'] > 30.5)].index, inplace = True)
+
+    datos.drop(datos[datos['Visibilidad corregida (m)'] > vmax].index, inplace = True)
+    # rango de tiempos:
+    datos.drop(datos[(datos['Hora'] < inicio) | (datos['Hora'] > fin)].index, inplace = True)
+    # diferencia de vis. corregida y real mayor que 20
+    datos.drop(datos[abs(datos['Visibilidad corregida (m)']-datos['Visibilidad (m)']) > 19].index, inplace = True)
+
+    if rangos:
+        pass
+    else: 
+        for v in range(6):
+            rangos.append(round(np.quantile(datos['Visibilidad corregida (m)'],v/6),1))
+            rangos.append(2000)
+            
+    #####################
+    ####  Datos ctes.
+    #####################        
+    
+    diams_g = np.array([2.13,2.289,2.46,2.643,2.841,3.053,3.28,3.525,3.788,4.071,4.374,4.701,5.051,5.428,5.833,6.268,6.736,7.239,
+                   7.779,8.359,8.983,9.653,10.373,11.147,11.979,12.872,13.833,14.865,15.974,17.165,18.446])
+    diams = np.array([0.104,0.111,0.12,0.129,0.138,0.149,0.16,0.172,0.184,0.198,0.213,0.229,0.246,0.264,0.284,0.305,0.328,0.352,0.379,
+                 0.407,0.437,0.47,0.505,0.543,0.583,0.627,0.674,0.724,0.778,0.836,0.898,0.965,1.037,1.115,1.198,1.287,1.383,1.486,
+                 1.597,1.717,1.845,1.982,2.13,2.289,2.46,2.643,2.841,3.053,3.28,3.525,3.788,4.071,4.374,4.701,5.051,5.428,5.833,
+                 6.268,6.736,7.239,7.779,8.359,8.983,9.653,10.373,11.147,11.979,12.872,13.833,14.865,15.974,17.165,18.446])
+    dx = np.array([0.007,0.008,0.009,0.009,0.01,0.011,0.011,0.012,0.013,0.014,0.015,0.016,0.018,0.019,0.02,0.022,0.024,0.025,0.027
+              ,0.029,0.031,0.034,0.036,0.039,0.042,0.045,0.048,0.052,0.056,0.06,0.065,0.069,0.075,0.08,0.086,0.093,0.099,0.107,0.115
+              ,0.123,0.133,0.143,0.153,0.165,0.177,0.19,0.204,0.22,0.236,0.254,0.272,0.293,0.315,0.338,0.363,0.39,0.42,0.451,0.484
+              ,0.521,0.559,0.601,0.646,0.694,0.746,0.802,0.862,0.926,0.995,1.069,1.149,1.235,1.327])
+    
+    #####################
+    ####  Bucle de operaciones
+    #####################   
+    for s in tqdm(vector):
+        
+        grafico = s
+        medias = [[] for v in range(len(rangos) - 1)]
+        pend = []
+        valores20 = [[] for v in range(len(rangos) - 1)]
+        valores50 = [[] for v in range(len(rangos) - 1)]
+        valores80 = [[] for v in range(len(rangos) - 1)]
+
+        for v in range(len(rangos)-1):
+            vis = datos[(datos['Visibilidad corregida (m)'] >= rangos[v]) &
+            (datos['Visibilidad corregida (m)'] < rangos[v+1])]
+    
+            if (len(vis) > 0):
+                gruesos = np.array(vis.iloc[:,54:85])
+                unidades = np.empty((gruesos.shape[0],gruesos.shape[1]))
+                masas_ac = np.empty((gruesos.shape[0],gruesos.shape[1]))
+                if ((grafico == 'volumen') | (grafico == 'vol')):
+                    vols = (np.pi/6)*(diams_g**3)
+                if ((grafico == 'superficie') | (grafico == 'sup')):
+                    vols = (np.pi)*(diams_g**2)
+                if ((grafico == 'particulas') | (grafico == 'part')):   
+                    vols = (diams_g**0)
+                    
+                for k in range(gruesos.shape[0]):
+                    for m in range(gruesos.shape[1]):
+                        unidades[k,m] = (vols[m])*np.divide(gruesos[k,m],dx[m+42])
+                        masas_ac[k] = np.cumsum(unidades[k,:])
+                for i in range(masas_ac.shape[0]):
+                    masas_ac[i] = 100*(masas_ac[i])/max(masas_ac[i])
+                for i in range(masas_ac.shape[1]):
+                    medias[v].append(promedio(masas_ac[:,i]))
+                
+                #logaritmos = np.log(masas_ac/100)
+                logaritmos = (-np.log(1.0001-masas_ac))
+                interm = 0;
+                if (logaritmos.shape[0] != 0):
+                    for i in range(logaritmos.shape[0]):
+                        pendiente, orden, _, _, _ = stats.linregress(diams_g[4:12]/diams_g[-1], logaritmos[i][4:12])
+                        interm = interm + pendiente
+                    pend.append(round((interm/(i+1)),3))
+                else:
+                    pend.append(0)
+            
+            #########################
+                #### Rampa de color
+                #####################
+                
+                color_labels = []
+                for w in range(len(rangos)-1):
+                    color_labels.append(str(rangos[w]) + '_' + str(rangos[w+1]))
+                
+                #rgb_values = sns.color_palette("ch:start=.2,rot=-.3", len(color_labels)) # cubehelix // alternativa: 'crest'
+                rgb_values = sns.color_palette("PuBu", len(color_labels)) # para val. discretos
+                #colorinchos = ListedColormap(sns.color_palette(rgb_values).as_hex())
+                #color_map = dict(zip(color_labels, rgb_values))
+                hand = []
+                for i in range(len(rgb_values)):
+                    hand.append(mpatches.Patch(color=rgb_values[i], label=str(color_labels[i])))
+                
+            #########################
+                ####  Graficado
+                #####################
+                with io.capture_output() as captured:
+                    fig, (axi,axd) = plt.subplots(1,2,figsize = (12,6))
+                axd.set_xscale('log'); axd.set_xlim(2,18); axd.set_ylim(0,100);
+                axi.set_xscale('log'); axi.set_xlim(2/diams_g[-1],18/diams_g[-1]);
+                axi.set_yscale('log'); axi.set_ylim(0.1,100)
+                axd.set_xlabel('Di·metro (um)'); axi.set_xlabel('D_norm')
+                labelsd = [2,3,4,5,6,8,10,12,15]; labelsi = [0.1,0.5,0.8,1,1.2,1.5]
+                axd.set_xticks(labelsd,minor=False); axi.set_xticks(labelsi,minor=False)
+                axd.set_xticklabels(labelsd); axi.set_xticklabels(labelsi)
+                labelsi = [0.1,1,5,10,20,50,100]
+                axi.set_yticks(labelsi,minor=False); axi.set_yticklabels(labelsi)
+                axd.grid(True); axi.grid(True)
+                for i in range(masas_ac.shape[0]):
+                    axd.plot(diams_g,masas_ac[i], color = 'blue', alpha = 0.3, lw = 0.5)
+                    valores20[v].append(localizardiam(masas_ac[i],20))
+                    valores50[v].append(localizardiam(masas_ac[i],50))
+                    valores80[v].append(localizardiam(masas_ac[i],80))
+                    axi.plot(diams_g/diams_g[-1],logaritmos[i], color = 'blue', alpha = 0.3, lw = 0.5)
+                    axi.plot(diams_g[4:12]/diams_g[-1],logaritmos[i][4:12], color = 'lightgreen', alpha = 0.5, lw = 0.5)
+                axd.plot(diams_g,medias[v],color = 'red', lw = 1.5)
+                #axi.annotate('Pendiente = ' + str(pend[v]), xy = (1,0.12), ha = 'right')
+                
+                if ((grafico == 'volumen') | (grafico == 'vol')):
+                    axd.set_ylabel('% Volumen'); axi.set_ylabel('% Volumen')
+                if ((grafico == 'superficie') | (grafico == 'sup')):
+                    axd.set_ylabel('% Superficie'); axi.set_ylabel('% Superficie')
+                if ((grafico == 'particulas') | (grafico == 'part')):   
+                    axd.set_ylabel('% Particulas'); axi.set_ylabel('% Particulas')
+                
+                axd.set_title('Visibilidad '+str(rangos[v]) + ' a ' + str(rangos[v+1]) + ' m - '
+                              + str(len(vis)) + ' registros')
+                plt.suptitle(ensayos + ', del ' + inicio.strftime("%d/%m/%Y") +
+                             ' a ' + fin.strftime("%d/%m/%Y"))
+                nom = inicio.strftime('%d%m')+'_'+fin.strftime('%d%m')+'_'+ensayos+'_'+str(grafico)+'_'+str(rangos[v])+'_a_'+str(rangos[v+1])
+                plt.savefig(ruta_proces + 'Gr·ficos/' + nom + '.png')
+            
+        # Gr·fico de comparaciÛn de medias
+        with io.capture_output() as captured:
+            fig = plt.figure(figsize = (9,12))
+        gs = gridspec.GridSpec(4, 1, height_ratios = [2.5,1,1,1])
+        ax1 = plt.subplot(gs[0,0])
+        ax2 = plt.subplot(gs[1,0], sharex = ax1)
+        ax3 = plt.subplot(gs[2,0], sharex = ax1)
+        ax4 = plt.subplot(gs[3,0], sharex = ax1)
+        ax2.boxplot(valores20, vert = False, positions = range(len(valores20)))
+        ax3.boxplot(valores50, vert = False, positions = range(len(valores50)))
+        ax4.boxplot(valores80, vert = False, positions = range(len(valores80)))
+        for z in range(len(medias)):
+            if medias[z]:
+                ax1.plot(diams_g,medias[z], color = rgb_values[z])
+        ax1.set_xlabel('Di·metro (um)');
+        ax2.set_ylabel('Visibilidad (m)'); ax2.set_xlabel('Di·metro (um)'); 
+        ax3.set_ylabel('Visibilidad (m)'); ax3.set_xlabel('Di·metro (um)'); 
+        ax4.set_ylabel('Visibilidad (m)'); ax4.set_xlabel('Di·metro (um)'); 
+        if ((grafico == 'volumen') | (grafico == 'vol')):
+            ax1.set_ylabel('% Volumen')
+        if ((grafico == 'superficie') | (grafico == 'sup')):
+            ax1.set_ylabel('% Superficie')
+        if ((grafico == 'particulas') | (grafico == 'part')):   
+            ax1.set_ylabel('% Particulas')
+        ax1.set_xscale('log'); ax1.set_xlim(2,18); ax1.set_ylim(0,100);
+        ax2.set_xscale('log'); ax2.set_xlim(2,18)
+        ax1.grid(True); ax2.grid(True); ax3.grid(True); ax4.grid(True)
+        ax1.legend(handles = hand, title = 'Visibilidad')
+        ax1.set_xticks(labelsd,minor=False); ax1.set_xticklabels(labelsd)
+        ax2.set_yticks(range(len(valores20)),minor=False); ax2.set_yticklabels(color_labels)
+        ax3.set_yticks(range(len(valores50)),minor=False); ax3.set_yticklabels(color_labels)
+        ax4.set_yticks(range(len(valores80)),minor=False); ax4.set_yticklabels(color_labels)
+
+        plt.suptitle(ensayos + ', del ' + inicio.strftime("%d/%m/%Y") +
+                     ' a ' + fin.strftime("%d/%m/%Y"))
+        ax1.set_title('Curvas acumuladas medias (' + str(grafico) + ')')
+        ax2.set_title('D(acum = 20%) por cada rango de visibilidad')
+        ax3.set_title('D(acum = 50%) por cada rango de visibilidad')
+        ax4.set_title('D(acum = 80%) por cada rango de visibilidad')
+        nom = inicio.strftime('%d%m') + '_' + fin.strftime('%d%m')+'_'+ensayos+'_'+str(grafico)+'_comparacion'
+        plt.tight_layout()
+        plt.savefig(ruta_proces + 'Gr·ficos/' + nom + '.png')
+
+    return datos
+
+########################
+########################
+#### Programa principal
+########################
+########################
+
+ruta_proces = 'C:\\Users\\miguel.anton\\Desktop\\NIEBLA\\Ensayos procesados\\'
+datos = pd.read_csv(ruta_proces + 'database_modif.csv', delimiter = ";", decimal = ".")
+
+# Transformaci√≥n de datos (filtrado, etc)
+
+datos = datos.dropna()
+datos.drop(datos[datos['Visibilidad corregida (m)'] == 0].index, inplace=True)
+datos.drop(datos[datos['Prec_mensual'] == -9999].index, inplace=True)
+
+#graficado(datos, modo = 'solo cs07', grafico = 'mas-vis', grupos = 3, normalizado = False, rampa = False, alfa = 1)
+rang = [15,30,45,60,75,100,200,1000]
+distribuciones(datos,ensayos = '8.',inicio='01/06/2021',fin='31/07/2021',rangos=rang)
