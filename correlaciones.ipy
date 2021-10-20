@@ -140,6 +140,7 @@ def graficado(datos, modo = '8.', grafico = 'gra-vis', grupos = 5, vmax = 2000, 
         datos.drop(datos[datos['Ensayo'] != modo[5:]].index, inplace = True)
     
     datos.drop(datos[datos['Visibilidad corregida (m)'] > vmax].index, inplace = True)
+    
     if rampa:
         color_labels = natsorted(datos[v_rampa].unique())
         rgb_values = sns.color_palette("ch:start=.2,rot=-.3", len(color_labels)) # cubehelix // alternativa: 'crest'
@@ -227,7 +228,7 @@ def graficado(datos, modo = '8.', grafico = 'gra-vis', grupos = 5, vmax = 2000, 
 #######################
 #######################
 
-def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/07/2021', 
+def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/2021', 
                    vmax = 2000, rangos = []):
     
     #####################
@@ -240,7 +241,10 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/07/20
     fin = datetime.datetime.strptime(fin,'%d/%m/%Y')
     for i in datos.index:
         datos.loc[i,'Hora'] = datetime.datetime.strptime(datos.loc[i,'Hora'], '%d/%m/%Y %H:%M')
-    if ((ensayos == 8) | (ensayos == '8.')):
+    if ((ensayos == 8) | (ensayos[0:2] == '8.')):
+        if (len(ensayos) > 2):
+            if (ensayos[3] == '+'):
+                especial = datos[(datos['Ensayo'].astype(str) == ensayos[5:-6]) & (datos['Tiempo (min)'] == float(ensayos[-1]))]
         datos.drop(datos[datos['Ensayo'].astype(str).str[0] != '8'].index, inplace = True)
     if ((ensayos[0:2] == 'cs') | (ensayos[0:2] == 'CS')):
         datos.drop(datos[datos['Ensayo'].astype(str).str[0:2] != 'cs'].index, inplace = True)
@@ -254,6 +258,10 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/07/20
             datos.drop(datos[datos['Tiempo (min)'] > 9.5].index, inplace = True)
         if ((ensayos[3:] == 'generada') | (ensayos[3:] == 'gen')):
             datos.drop(datos[(datos['Tiempo (min)'] < 9.5) | (datos['Tiempo (min)'] > 30.5)].index, inplace = True)
+    if (ensayos[0:4] == 'solo'):
+        datos.drop(datos[datos['Ensayo'].astype(str) != ensayos[5:-6]].index, inplace = True)
+        if (ensayos[-5:-2] == 'min'):
+            datos.drop(datos[datos['Tiempo (min)'] != int(ensayos[-1])].index, inplace = True)
 
     datos.drop(datos[datos['Visibilidad corregida (m)'] > vmax].index, inplace = True)
     # rango de tiempos:
@@ -313,18 +321,26 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/07/20
                 for k in range(gruesos.shape[0]):
                     for m in range(gruesos.shape[1]):
                         unidades[k,m] = (vols[m])*np.divide(gruesos[k,m],dx[m+42])
-                        masas_ac[k] = np.cumsum(unidades[k,:])
+                    masas_ac[k] = np.cumsum(unidades[k,:])
                 for i in range(masas_ac.shape[0]):
                     masas_ac[i] = 100*(masas_ac[i])/max(masas_ac[i])
                 for i in range(masas_ac.shape[1]):
                     medias[v].append(promedio(masas_ac[:,i]))
                 
-                #logaritmos = np.log(masas_ac/100)
-                logaritmos = (-np.log(1.0001-masas_ac))
+                if (len(ensayos) > 2):
+                    if (ensayos[3] == '+'):
+                        spec = np.array(especial.iloc[:,54:85])
+                        for m in range(len(spec)):
+                            spec[m] = (vols[m])*np.divide(spec[m],dx[m+42])
+                        especialac = np.cumsum(spec)
+                        especialac = 100*especialac/especialac[-1]
+                
+                #logaritmos = (1-(masas_ac/100))
+                logaritmos = (-np.log(1.0001-masas_ac/100))
                 interm = 0;
                 if (logaritmos.shape[0] != 0):
                     for i in range(logaritmos.shape[0]):
-                        pendiente, orden, _, _, _ = stats.linregress(diams_g[4:12]/diams_g[-1], logaritmos[i][4:12])
+                        pendiente, orden, _, _, _ = stats.linregress(np.log(diams_g/10)[5:14], np.log(logaritmos[i])[5:14])
                         interm = interm + pendiente
                     pend.append(round((interm/(i+1)),3))
                 else:
@@ -338,8 +354,8 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/07/20
                 for w in range(len(rangos)-1):
                     color_labels.append(str(rangos[w]) + '_' + str(rangos[w+1]))
                 
-                #rgb_values = sns.color_palette("ch:start=.2,rot=-.3", len(color_labels)) # cubehelix // alternativa: 'crest'
-                rgb_values = sns.color_palette("PuBu", len(color_labels)) # para val. discretos
+                #rgb_values = sns.color_palette("ch:start=.2,rot=-.3", len(color_labels)) # cubehelix // alternativa: 'crest', 'PuBu'
+                rgb_values = sns.color_palette("hls", len(color_labels))
                 #colorinchos = ListedColormap(sns.color_palette(rgb_values).as_hex())
                 #color_map = dict(zip(color_labels, rgb_values))
                 hand = []
@@ -352,31 +368,34 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/07/20
                 with io.capture_output() as captured:
                     fig, (axi,axd) = plt.subplots(1,2,figsize = (12,6))
                 axd.set_xscale('log'); axd.set_xlim(2,18); axd.set_ylim(0,100);
-                axi.set_xscale('log'); axi.set_xlim(2/diams_g[-1],18/diams_g[-1]);
-                axi.set_yscale('log'); axi.set_ylim(0.1,100)
+                axi.set_xscale('log'); axi.set_xlim(0.2,1.8);
+                axi.set_yscale('log'); axi.set_ylim(0.0001,10)
                 axd.set_xlabel('Diámetro (um)'); axi.set_xlabel('D_norm')
-                labelsd = [2,3,4,5,6,8,10,12,15]; labelsi = [0.1,0.5,0.8,1,1.2,1.5]
+                labelsd = [2,3,4,5,6,8,10,12,15]; labelsi = [0.2,0.3,0.4,0.6,0.8,1.2,1.8]
                 axd.set_xticks(labelsd,minor=False); axi.set_xticks(labelsi,minor=False)
                 axd.set_xticklabels(labelsd); axi.set_xticklabels(labelsi)
-                labelsi = [0.1,1,5,10,20,50,100]
+                labelsi = [0.0001,0.001,0.01,0.1,1,5,10]
                 axi.set_yticks(labelsi,minor=False); axi.set_yticklabels(labelsi)
-                axd.grid(True); axi.grid(True)
+                axd.grid(True); axi.grid(which='both')
                 for i in range(masas_ac.shape[0]):
                     axd.plot(diams_g,masas_ac[i], color = 'blue', alpha = 0.3, lw = 0.5)
                     valores20[v].append(localizardiam(masas_ac[i],20))
                     valores50[v].append(localizardiam(masas_ac[i],50))
                     valores80[v].append(localizardiam(masas_ac[i],80))
-                    axi.plot(diams_g/diams_g[-1],logaritmos[i], color = 'blue', alpha = 0.3, lw = 0.5)
-                    axi.plot(diams_g[4:12]/diams_g[-1],logaritmos[i][4:12], color = 'lightgreen', alpha = 0.5, lw = 0.5)
+                    axi.plot(diams_g/10,logaritmos[i], color = 'blue', alpha = 0.3, lw = 0.5)
+                    axi.plot(diams_g[5:14]/10,logaritmos[i][5:14], color = 'lightgreen', alpha = 0.5, lw = 0.5)
                 axd.plot(diams_g,medias[v],color = 'red', lw = 1.5)
-                #axi.annotate('Pendiente = ' + str(pend[v]), xy = (1,0.12), ha = 'right')
+                if (len(ensayos) > 2):
+                    if (ensayos[3] == '+'):
+                        axd.plot(diams_g,especialac,color='green',lw=1.5)
+                axi.annotate('Pendiente = ' + str(pend[v]), xy = (1.8,0.00012), ha = 'right')
                 
                 if ((grafico == 'volumen') | (grafico == 'vol')):
-                    axd.set_ylabel('% Volumen'); axi.set_ylabel('% Volumen')
+                    axd.set_ylabel('% Volumen'); axi.set_ylabel('-ln(1-M(d<D)/MT')
                 if ((grafico == 'superficie') | (grafico == 'sup')):
-                    axd.set_ylabel('% Superficie'); axi.set_ylabel('% Superficie')
+                    axd.set_ylabel('% Superficie'); axi.set_ylabel('-ln(1-S(d<D)/ST')
                 if ((grafico == 'particulas') | (grafico == 'part')):   
-                    axd.set_ylabel('% Particulas'); axi.set_ylabel('% Particulas')
+                    axd.set_ylabel('% Particulas'); axi.set_ylabel('-ln(1-N(d<D)/NT')
                 
                 axd.set_title('Visibilidad '+str(rangos[v]) + ' a ' + str(rangos[v+1]) + ' m - '
                               + str(len(vis)) + ' registros')
