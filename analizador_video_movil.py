@@ -10,10 +10,12 @@ import numpy as np
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
+import PILasOPENCV as Image
+import PILasOPENCV as ImageDraw
+import PILasOPENCV as ImageFont
 import datetime # formato fecha
 import cv2 # AKA openCV
 import seaborn as sbs
-from PIL import ImageFont, ImageDraw, Image 
 from natsort import natsorted # ordenaciÃ³n de las imÃ¡genes
 from random import random, randint # aleatoriedad
 
@@ -42,6 +44,13 @@ def coordenadas(images,numpuntos):
         c_neg_dentro.append([centro_dentro[1]+sig_rand()*randint(0,24),centro_dentro[0]+sig_rand()*randint(22,27)])
         c_bla_dentro.append([centro_dentro[1]+randint(-13,5),centro_dentro[0]+sig_rand()*randint(9,15)])
     return c_bla_fuera,c_neg_fuera,c_bla_dentro,c_neg_dentro
+
+def textobn(texto,offset,scale=1,thickness=2):
+    
+    fnt = cv2.FONT_HERSHEY_SIMPLEX
+    (cancho,calto), base = cv2.getTextSize(texto,fnt,scale,thickness)
+    cv2.rectangle(im_copia, (offset[0]-5,offset[1]-5), (offset[0]+cancho+5,offset[1]+calto+5), (0,0,0), -1)
+    cv2.putText(im_copia,texto,(offset[0],offset[1]+calto),fontFace=fnt,fontScale=scale,color=(255,255,255),thickness=thickness)
 
 def visibilidad(blanco,negro):
     v_claro = 181.67 # obtenida a partir de la Ãºltima imagen del Ensayo 15 (tomada 11 Ago 2021 - 12:39:26)
@@ -79,10 +88,12 @@ for f in carpeta:
     name, ext = os.path.splitext(f)
     if ext == '.mp4':
         nombres.append(name + ext)
+
+fon = ImageFont.truetype("arial.ttf", 18)
         
 ###############################
 ##### Cambiar para cambiar el vídeo a procesar
-n = 1
+n = 4
 ###############################
 
 if (n==0): # CS25 inicio
@@ -182,27 +193,24 @@ while(video.isOpened()):
         texto_medio = 'Mejora: ' + str(dif[-1]) + ' m'
         fuera = (int(centro_fuera[0]-180),int(centro_fuera[1] + 140))
         dentro = (int(centro_dentro[0]-180),int(centro_fuera[1] + 140))
-        medio = (int(centro_fuera[0]+100),int(centro_fuera[1] + 280))
-        cv2.rectangle(im_copia, (fuera[0]-10,fuera[1]-25), (fuera[0]+380,fuera[1]+15), (0,0,0), -1)
-        cv2.putText(im_copia, texto_fuera, fuera, fontFace = cv2.FONT_HERSHEY_SIMPLEX, fontScale = 0.7, color = (255,255,255))
-        cv2.rectangle(im_copia, (dentro[0]-10,dentro[1]-25), (dentro[0]+390,dentro[1]+15), (0,0,0), -1)
-        cv2.putText(im_copia, texto_dentro, dentro, fontFace = cv2.FONT_HERSHEY_SIMPLEX, fontScale = 0.7, color = (255,255,255))
-        cv2.rectangle(im_copia, (medio[0]-10,medio[1]-25), (medio[0]+225,medio[1]+15), (0,0,0), -1)
-        cv2.putText(im_copia, texto_medio, medio, fontFace = cv2.FONT_HERSHEY_SIMPLEX, fontScale = 0.8, color = (255,255,255))
-        for z in range(len(bf)):
+        medio = (int(centro_fuera[0]+100),int(centro_fuera[1] + 240))
+        textobn(texto_fuera,fuera,0.7,2)
+        textobn(texto_dentro,dentro,0.7,2)
+        textobn(texto_medio,medio,1,2)
+        '''for z in range(len(bf)):
             cv2.circle(im_copia, (bf[z][1],bf[z][0]), 1, (0,255,0), thickness=-3, lineType=cv2.LINE_AA)
             cv2.circle(im_copia, (nf[z][1],nf[z][0]), 1, (0,255,255), thickness=-3, lineType=cv2.LINE_AA)
             cv2.circle(im_copia, (bd[z][1],bd[z][0]), 1, (0,255,0), thickness=-3, lineType=cv2.LINE_AA)
             cv2.circle(im_copia, (nd[z][1],nd[z][0]), 1, (0,255,255), thickness=-3, lineType=cv2.LINE_AA)
         cv2.circle(im_copia, centro_fuera, 2, (255, 0, 0), thickness=-1, lineType=cv2.LINE_AA)
         cv2.circle(im_copia, centro_dentro, 2, (255, 0, 0), thickness=-1, lineType=cv2.LINE_AA)
-        
-        cv2.rectangle(im_copia, (10,10), (320,70), (0,0,0), -1)
+        '''
+        arriba = (centro_fuera[0]+15,centro_fuera[1]-200)
         
         msec = video.get(cv2.CAP_PROP_POS_MSEC)/1000
         horaactual = iniciovideo + datetime.timedelta(seconds = msec)
         tiempo_inst = horaactual.strftime("%H:%M:%S")
-        cv2.putText(im_copia, tiempo_inst, (20,60), fontFace = cv2.FONT_HERSHEY_TRIPLEX, fontScale = 2, color = (255,255,255))
+        textobn(tiempo_inst,arriba,3,2)
         
         if (nframe % 4 == 0): # a efectos prácticos aumenta velocidad x4
             out.write(im_copia)
