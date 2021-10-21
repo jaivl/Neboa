@@ -21,7 +21,6 @@ from matplotlib import pyplot as plt
 from matplotlib import gridspec
 from tqdm import tqdm, trange # barra de progreso
 
-
 def promedio(lst):
     return sum(lst) / len(lst)
     
@@ -222,6 +221,17 @@ def graficado(datos, modo = '8.', grafico = 'gra-vis', grupos = 5, vmax = 2000, 
                 #axes[i,j].xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
 
 
+def sinoutlier(datos):
+    Q1 = np.percentile(datos, 25)
+    Q3 = np.percentile(datos, 75)
+    gap = 1.6*(Q3 - Q1)
+    filtrado = []
+    for i in datos:
+        if ((i < Q3 + gap) & (i > Q1 - gap)):
+            filtrado.append(i)
+    return filtrado
+
+
 #######################
 #######################
 ### Función principal
@@ -299,24 +309,40 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/20
         grafico = s
         medias = [[] for v in range(len(rangos) - 1)]
         pend = []
-        valores20 = [[] for v in range(len(rangos) - 1)]
+        valores15 = [[] for v in range(len(rangos) - 1)]
+        valores60 = [[] for v in range(len(rangos) - 1)]
         valores50 = [[] for v in range(len(rangos) - 1)]
-        valores80 = [[] for v in range(len(rangos) - 1)]
+        valores85 = [[] for v in range(len(rangos) - 1)]
+        
+        if (s == 'volumen'):
+            vols = (np.pi/6)*(diams_g**3)
+        if (s == 'superficie'):
+            vols = (np.pi)*(diams_g**2)
+        if (s == 'particulas'):   
+            vols = (diams_g**0)
+            
+        if (len(ensayos) > 2):
+            if (ensayos[3] == '+'):
+                spec = np.array(especial.iloc[:,54:85])
+                for m in range(len(spec)):
+                    spec[m] = (vols)*np.divide(spec[m],dx[m+42])
+                especialac = np.cumsum(spec)
+                especialac = 100*especialac/max(especialac)
 
         for v in range(len(rangos)-1):
             vis = datos[(datos['Visibilidad corregida (m)'] >= rangos[v]) &
             (datos['Visibilidad corregida (m)'] < rangos[v+1])]
+            
+            if (len(ensayos) > 2):
+                if (ensayos[3] == '+'):
+                    if ((especial['Visibilidad corregida (m)'][especial.index[0]] >= rangos[v]) &
+                        (especial['Visibilidad corregida (m)'][especial.index[0]] < rangos[v+1])):
+                        dondeespecial = v
     
             if (len(vis) > 0):
                 gruesos = np.array(vis.iloc[:,54:85])
                 unidades = np.empty((gruesos.shape[0],gruesos.shape[1]))
                 masas_ac = np.empty((gruesos.shape[0],gruesos.shape[1]))
-                if ((grafico == 'volumen') | (grafico == 'vol')):
-                    vols = (np.pi/6)*(diams_g**3)
-                if ((grafico == 'superficie') | (grafico == 'sup')):
-                    vols = (np.pi)*(diams_g**2)
-                if ((grafico == 'particulas') | (grafico == 'part')):   
-                    vols = (diams_g**0)
                     
                 for k in range(gruesos.shape[0]):
                     for m in range(gruesos.shape[1]):
@@ -327,13 +353,6 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/20
                 for i in range(masas_ac.shape[1]):
                     medias[v].append(promedio(masas_ac[:,i]))
                 
-                if (len(ensayos) > 2):
-                    if (ensayos[3] == '+'):
-                        spec = np.array(especial.iloc[:,54:85])
-                        for m in range(len(spec)):
-                            spec[m] = (vols[m])*np.divide(spec[m],dx[m+42])
-                        especialac = np.cumsum(spec)
-                        especialac = 100*especialac/especialac[-1]
                 
                 #logaritmos = (1-(masas_ac/100))
                 logaritmos = (-np.log(1.0001-masas_ac/100))
@@ -379,12 +398,23 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/20
                 axd.grid(True); axi.grid(which='both')
                 for i in range(masas_ac.shape[0]):
                     axd.plot(diams_g,masas_ac[i], color = 'blue', alpha = 0.3, lw = 0.5)
-                    valores20[v].append(localizardiam(masas_ac[i],20))
+                    valores15[v].append(localizardiam(masas_ac[i],15))
                     valores50[v].append(localizardiam(masas_ac[i],50))
-                    valores80[v].append(localizardiam(masas_ac[i],80))
+                    valores60[v].append(localizardiam(masas_ac[i],60))
+                    valores85[v].append(localizardiam(masas_ac[i],85))
                     axi.plot(diams_g/10,logaritmos[i], color = 'blue', alpha = 0.3, lw = 0.5)
                     axi.plot(diams_g[5:14]/10,logaritmos[i][5:14], color = 'lightgreen', alpha = 0.5, lw = 0.5)
                 axd.plot(diams_g,medias[v],color = 'red', lw = 1.5)
+                
+                #
+                # AQUÍ SE QUITAN LOS OUTLIERS (*1.5 VECES EL IQR)
+                #
+                
+                #valores15[v] = sinoutlier(valores15[v])
+                #valores50[v] = sinoutlier(valores50[v])
+                #valores60[v] = sinoutlier(valores60[v])
+                #valores85[v] = sinoutlier(valores85[v])
+                    
                 if (len(ensayos) > 2):
                     if (ensayos[3] == '+'):
                         axd.plot(diams_g,especialac,color='green',lw=1.5)
@@ -402,19 +432,43 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/20
                 plt.suptitle(ensayos + ', del ' + inicio.strftime("%d/%m/%Y") +
                              ' a ' + fin.strftime("%d/%m/%Y"))
                 nom = inicio.strftime('%d%m')+'_'+fin.strftime('%d%m')+'_'+ensayos+'_'+str(grafico)+'_'+str(rangos[v])+'_a_'+str(rangos[v+1])
-                plt.savefig(ruta_proces + 'Gráficos/' + nom + '.png')
-            
+                
+                if (len(ensayos) > 3):
+                    if (ensayos[3] == '+'):
+                        _
+                    else:
+                        plt.savefig(ruta_proces + 'Gráficos/' + nom + '.png')
+                else:
+                    plt.savefig(ruta_proces + 'Gráficos/' + nom + '.png')
+         
         # Gráfico de comparación de medias
         with io.capture_output() as captured:
-            fig = plt.figure(figsize = (9,12))
-        gs = gridspec.GridSpec(4, 1, height_ratios = [2.5,1,1,1])
-        ax1 = plt.subplot(gs[0,0])
-        ax2 = plt.subplot(gs[1,0], sharex = ax1)
-        ax3 = plt.subplot(gs[2,0], sharex = ax1)
-        ax4 = plt.subplot(gs[3,0], sharex = ax1)
-        ax2.boxplot(valores20, vert = False, positions = range(len(valores20)))
+            fig = plt.figure(figsize = (16,9))
+        gs = gridspec.GridSpec(4, 2, width_ratios = [1,1.5], height_ratios = [1,1,1,1])
+        ax1 = plt.subplot(gs[0:3,1])
+        ax2 = plt.subplot(gs[0,0], sharex = ax1)
+        ax3 = plt.subplot(gs[1,0], sharex = ax1)
+        ax4 = plt.subplot(gs[2,0], sharex = ax1)
+        ax5 = plt.subplot(gs[3,0], sharex = ax1)
+        ax2.boxplot(valores15, vert = False, positions = range(len(valores15)))
         ax3.boxplot(valores50, vert = False, positions = range(len(valores50)))
-        ax4.boxplot(valores80, vert = False, positions = range(len(valores80)))
+        ax4.boxplot(valores60, vert = False, positions = range(len(valores60)))
+        ax5.boxplot(valores85, vert = False, positions = range(len(valores85)))
+        if (len(ensayos) > 2):
+            if (ensayos[3] == '+'):
+                especial15 = localizardiam(especialac,15)
+                especial50 = localizardiam(especialac,50)
+                especial60 = localizardiam(especialac,60)
+                especial85 = localizardiam(especialac,85)
+                ax2.scatter(especial15, dondeespecial, marker = '*', s=150, color='red')
+                ax3.scatter(especial50, dondeespecial, marker = '*', s=150, color='red')
+                ax4.scatter(especial60, dondeespecial, marker = '*', s=150, color='red')
+                ax5.scatter(especial85, dondeespecial, marker = '*', s=150, color='red')
+                ax2.axvline(especial15, color = 'red', lw = 0.5)
+                ax3.axvline(especial50, color = 'red', lw = 0.5)
+                ax4.axvline(especial60, color = 'red', lw = 0.5)
+                ax5.axvline(especial85, color = 'red', lw = 0.5)
+
         for z in range(len(medias)):
             if medias[z]:
                 ax1.plot(diams_g,medias[z], color = rgb_values[z])
@@ -422,6 +476,7 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/20
         ax2.set_ylabel('Visibilidad (m)'); ax2.set_xlabel('Diámetro (um)'); 
         ax3.set_ylabel('Visibilidad (m)'); ax3.set_xlabel('Diámetro (um)'); 
         ax4.set_ylabel('Visibilidad (m)'); ax4.set_xlabel('Diámetro (um)'); 
+        ax5.set_ylabel('Visibilidad (m)'); ax5.set_xlabel('Diámetro (um)'); 
         if ((grafico == 'volumen') | (grafico == 'vol')):
             ax1.set_ylabel('% Volumen')
         if ((grafico == 'superficie') | (grafico == 'sup')):
@@ -430,22 +485,25 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/20
             ax1.set_ylabel('% Particulas')
         ax1.set_xscale('log'); ax1.set_xlim(2,18); ax1.set_ylim(0,100);
         ax2.set_xscale('log'); ax2.set_xlim(2,18)
-        ax1.grid(True); ax2.grid(True); ax3.grid(True); ax4.grid(True)
+        ax1.grid(True); ax2.grid(True); ax3.grid(True); ax4.grid(True); ax5.grid(True)
         ax1.legend(handles = hand, title = 'Visibilidad')
         ax1.set_xticks(labelsd,minor=False); ax1.set_xticklabels(labelsd)
-        ax2.set_yticks(range(len(valores20)),minor=False); ax2.set_yticklabels(color_labels)
+        ax2.set_yticks(range(len(valores15)),minor=False); ax2.set_yticklabels(color_labels)
         ax3.set_yticks(range(len(valores50)),minor=False); ax3.set_yticklabels(color_labels)
-        ax4.set_yticks(range(len(valores80)),minor=False); ax4.set_yticklabels(color_labels)
+        ax4.set_yticks(range(len(valores60)),minor=False); ax4.set_yticklabels(color_labels)
+        ax5.set_yticks(range(len(valores85)),minor=False); ax5.set_yticklabels(color_labels)
 
         plt.suptitle(ensayos + ', del ' + inicio.strftime("%d/%m/%Y") +
                      ' a ' + fin.strftime("%d/%m/%Y"))
         ax1.set_title('Curvas acumuladas medias (' + str(grafico) + ')')
-        ax2.set_title('D(acum = 20%) por cada rango de visibilidad')
+        ax2.set_title('D(acum = 15%) por cada rango de visibilidad')
         ax3.set_title('D(acum = 50%) por cada rango de visibilidad')
-        ax4.set_title('D(acum = 80%) por cada rango de visibilidad')
+        ax4.set_title('D(acum = 60%) por cada rango de visibilidad')
+        ax5.set_title('D(acum = 85%) por cada rango de visibilidad')
         nom = inicio.strftime('%d%m') + '_' + fin.strftime('%d%m')+'_'+ensayos+'_'+str(grafico)+'_comparacion'
         plt.tight_layout()
-        plt.savefig(ruta_proces + 'Gráficos/' + nom + '.png')
+        with io.capture_output() as captured:
+            plt.savefig(ruta_proces + 'Gráficos/' + nom + '.png')
 
     return datos
 
@@ -463,7 +521,8 @@ datos = pd.read_csv(ruta_proces + 'database_modif.csv', delimiter = ";", decimal
 datos = datos.dropna()
 datos.drop(datos[datos['Visibilidad corregida (m)'] == 0].index, inplace=True)
 datos.drop(datos[datos['Prec_mensual'] == -9999].index, inplace=True)
+datos.drop(datos[abs(datos['Visibilidad corregida (m)'] - datos['Visibilidad (m)']) > 20].index, inplace=True)
 
 #graficado(datos, modo = 'solo cs07', grafico = 'mas-vis', grupos = 3, normalizado = False, rampa = False, alfa = 1)
 rang = [15,30,45,60,75,100,200,1000]
-distribuciones(datos,ensayos = '8.',inicio='01/06/2021',fin='31/07/2021',rangos=rang)
+datos=distribuciones(datos,ensayos = '8.',inicio='01/06/2021',fin='31/07/2021',rangos=rang)
