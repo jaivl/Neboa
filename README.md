@@ -9,7 +9,11 @@ Isto inclúe, entre outros, programas de graficado, de análise de espectrometr�
 
 **fractal:** Calcula a distribución fractal para cada minuto de ensaios de só-néboa, exporta gráficos duales cos gráficos log/log e a evolución da dimensión fractal no tempo. Paquetes principais: pandas, matplotlib, seaborn. Formato Jupyter Python Notebook.
 
-**graficos_por_visib:** Programa estándar de graficado, importa automáticamente os arquivos procesados do espectrómetro dende a carpeta de traballo e gárdaos en dataframes en Pandas. Debuxa os gráficos de distribución de partícula dos ensaios agrupados pola súa visibilidade. Paquetes principais: pandas, matplotlib. Formato Jupyter Python Notebook.
+**graficador:** Programa estándar de graficado, multifunción:
+  - debuxa os gráficos de distribución de partícula dos ensaios agrupados pola súa visibilidade
+  - constrúe gráficos de caixas coa caracterización granulométrica dos ensaios
+  - debuxa gráficos de masas, superficies, etc, con rampas de cor clasificatorias
+  - etc
 
 **machine_niebla:** Aplicacións de aprendizaxe automática ao análise das néboas do Fiouco - predicción mediante bosques aleatorios e gradient-boosters, clasificación en clústeres mediante algoritmo k-fold, etc. Paquetes principais: sklearn. Formato Jupyter Python Notebook.
 
