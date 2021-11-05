@@ -88,15 +88,7 @@ def rosinrammler(ac, m):
     if (cerca == 0.632):
         diam_tipo = diams_g[res]
     F = 1 - 2.71828**(-(x/diam_tipo)**m)
-    return F
-
-def niebla_only(datos,corregido=False):
-    datos.dropna(inplace=True)
-    datos.drop(datos[datos['Visibilidad corregida (m)'] == 0].index, inplace=True)
-    datos.drop(datos[(datos['Ensayo'].astype(str).str[0] != '8') & (datos['Tiempo (min)'] > 9)].index, inplace = True)
-    if corregido:
-        datos.drop(datos[abs(datos['Visibilidad corregida (m)']-datos['Visibilidad (m)']) > 19].index, inplace = True)
-    return datos
+    return F    
 
 def filtrador(datos,ensayos='8.',inicio = '01/06/2021', fin = '31/07/2021',cap = 150):
     datos = datos.dropna()
@@ -120,6 +112,15 @@ def filtrador(datos,ensayos='8.',inicio = '01/06/2021', fin = '31/07/2021',cap =
         if (datos.loc[i,'Visibilidad corregida (m)'] > cap):
             datos.loc[i,'Visibilidad corregida (m)'] = cap
             
+    return datos
+
+def filtrar_corregida(datos,rangos):
+    lim = [15,15,15,15,25,25,50]
+    for v in range(len(rangos)-1):
+        datos.drop(datos[(datos['Visibilidad corregida (m)'] >= rangos[v]) &
+            (datos['Visibilidad corregida (m)'] < rangos[v+1]) &
+            (abs(datos['Visibilidad corregida (m)']-datos['Visibilidad (m)']) > lim[v])]
+                   .index, inplace = True)
     return datos
 
 #########################
@@ -241,11 +242,11 @@ def sinoutlier(datos):
 
 #######################
 #######################
-### Función principal
+### Función principal gráficos de cajas
 #######################
 #######################
 
-def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/2021', 
+def distribuciones_cajas(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/2021', 
                    vmax = 2000, rangos = []):
     
     #####################
@@ -284,7 +285,7 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/20
     # rango de tiempos:
     datos.drop(datos[(datos['Hora'] < inicio) | (datos['Hora'] > fin)].index, inplace = True)
     # diferencia de vis. corregida y real mayor que 20
-    datos.drop(datos[abs(datos['Visibilidad corregida (m)']-datos['Visibilidad (m)']) > 19].index, inplace = True)
+    datos = filtrar_corregida(datos,rangos)
 
     if rangos:
         pass
@@ -391,27 +392,14 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/20
             #########################
                 ####  Graficado
                 #####################
-                with io.capture_output() as captured:
-                    fig, (axi,axd) = plt.subplots(1,2,figsize = (12,6))
-                axd.set_xscale('log'); axd.set_xlim(2,18); axd.set_ylim(0,100);
-                axi.set_xscale('log'); axi.set_xlim(0.2,1.8);
-                axi.set_yscale('log'); axi.set_ylim(0.0001,10)
-                axd.set_xlabel('Diámetro (um)'); axi.set_xlabel('D_norm')
+                
                 labelsd = [2,3,4,5,6,8,10,12,15]; labelsi = [0.2,0.3,0.4,0.6,0.8,1.2,1.8]
-                axd.set_xticks(labelsd,minor=False); axi.set_xticks(labelsi,minor=False)
-                axd.set_xticklabels(labelsd); axi.set_xticklabels(labelsi)
-                labelsi = [0.0001,0.001,0.01,0.1,1,5,10]
-                axi.set_yticks(labelsi,minor=False); axi.set_yticklabels(labelsi)
-                axd.grid(True); axi.grid(which='both')
+
                 for i in range(masas_ac.shape[0]):
-                    axd.plot(diams_g,masas_ac[i], color = 'blue', alpha = 0.3, lw = 0.5)
                     valores15[v].append(localizardiam(masas_ac[i],15))
                     valores50[v].append(localizardiam(masas_ac[i],50))
                     valores60[v].append(localizardiam(masas_ac[i],60))
                     valores85[v].append(localizardiam(masas_ac[i],85))
-                    axi.plot(diams_g/10,logaritmos[i], color = 'blue', alpha = 0.3, lw = 0.5)
-                    axi.plot(diams_g[5:14]/10,logaritmos[i][5:14], color = 'lightgreen', alpha = 0.5, lw = 0.5)
-                axd.plot(diams_g,medias[v],color = 'red', lw = 1.5)
                 
                 #
                 # AQUÍ SE QUITAN LOS OUTLIERS (*1.5 VECES EL IQR)
@@ -422,32 +410,6 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/20
                 #valores60[v] = sinoutlier(valores60[v])
                 #valores85[v] = sinoutlier(valores85[v])
                     
-                if (len(ensayos) > 2):
-                    if (ensayos[3] == '+'):
-                        axd.plot(diams_g,especialac,color='green',lw=1.5)
-                #axi.annotate('Pendiente = ' + str(pend[v]), xy = (1.8,0.00012), ha = 'right')
-                
-                if ((grafico == 'volumen') | (grafico == 'vol')):
-                    axd.set_ylabel('% Volumen'); axi.set_ylabel('-ln(1-M(d<D)/MT')
-                if ((grafico == 'superficie') | (grafico == 'sup')):
-                    axd.set_ylabel('% Superficie'); axi.set_ylabel('-ln(1-S(d<D)/ST')
-                if ((grafico == 'particulas') | (grafico == 'part')):   
-                    axd.set_ylabel('% Particulas'); axi.set_ylabel('-ln(1-N(d<D)/NT')
-                
-                axd.set_title('Visibilidad '+str(rangos[v]) + ' a ' + str(rangos[v+1]) + ' m - '
-                              + str(len(vis)) + ' registros')
-                plt.suptitle(ensayos + ', del ' + inicio.strftime("%d/%m/%Y") +
-                             ' a ' + fin.strftime("%d/%m/%Y"))
-                nom = inicio.strftime('%d%m')+'_'+fin.strftime('%d%m')+'_'+ensayos+'_'+str(grafico)+'_'+str(rangos[v])+'_a_'+str(rangos[v+1])
-                
-                if (len(ensayos) > 3):
-                    if (ensayos[3] == '+'):
-                        _
-                    else:
-                        plt.savefig(ruta_proces + 'Gráficos/' + nom + '.png')
-                else:
-                    plt.savefig(ruta_proces + 'Gráficos/' + nom + '.png')
-         
         # Gráfico de comparación de medias
         with io.capture_output() as captured:
             fig = plt.figure(figsize = (16,9))
@@ -523,16 +485,33 @@ def distribuciones(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31/08/20
 #######################
 #######################
 
+def niebla_only(datos,rangos,corregido=False):
+    datos.dropna(inplace=True)
+    datos.drop(datos[datos['Visibilidad corregida (m)'] == 0].index, inplace=True)
+    datos.drop(datos[(datos['Ensayo'].astype(str).str[0] != '8') & (datos['Tiempo (min)'] > 9)].index, inplace = True)
+    if corregido:
+        filtrar_corregida(datos,rangos)
+    return datos
+
+def caract_only(datos,rangos,corregido=True):
+    datos.dropna(inplace=True)
+    datos.drop(datos[datos['Visibilidad corregida (m)'] == 0].index, inplace=True)
+    datos.drop(datos[(datos['Ensayo'].astype(str).str[0] != '8')].index, inplace = True)
+    if corregido:
+        filtrar_corregida(datos,rangos)
+    return datos
+
 def preparar(datos,inicio='01/06/2021',fin='31/07/2021',rangos=[]):
-    datos = niebla_only(datos,corregido=True)
+    datos = caract_only(datos,rangos,corregido=True)
     inicio = datetime.datetime.strptime(inicio,'%d/%m/%Y')
     fin = datetime.datetime.strptime(fin,'%d/%m/%Y')
     for i in datos.index:
         datos.loc[i,'Hora'] = datetime.datetime.strptime(datos.loc[i,'Hora'], '%d/%m/%Y %H:%M')
     datos.drop(datos[(datos['Hora'] < inicio) | (datos['Hora'] > fin)].index, inplace = True)
+    datos.drop(datos[datos['Prec_mensual'] == -9999].index, inplace=True)
     return datos
 
-def visib(datos, inicio, fin, rangos=[]):
+def separar_ensayos(datos, inicio, fin, rangos=[]):
     if rangos:
         pass
     else: 
@@ -552,19 +531,122 @@ def visib(datos, inicio, fin, rangos=[]):
               ,0.029,0.031,0.034,0.036,0.039,0.042,0.045,0.048,0.052,0.056,0.06,0.065,0.069,0.075,0.08,0.086,0.093,0.099,0.107,0.115
               ,0.123,0.133,0.143,0.153,0.165,0.177,0.19,0.204,0.22,0.236,0.254,0.272,0.293,0.315,0.338,0.363,0.39,0.42,0.451,0.484
               ,0.521,0.559,0.601,0.646,0.694,0.746,0.802,0.862,0.926,0.995,1.069,1.149,1.235,1.327])
+    
+    if (len(datos) > 0):
+        suma_gruesos = np.empty((len(datos),1))
+        unidades = np.array(datos.iloc[:,57:88])
+        unidades_norm = np.array(datos.iloc[:,57:88])
+        for k in range(unidades.shape[0]):
+            suma_gruesos[k] = np.sum(unidades[k,:])
+            unidades_norm[k,:] = np.divide(unidades[k,:],suma_gruesos[k])
+        for m in range(unidades.shape[1]):
+            unidades[:,m] = np.divide(unidades[:,m],dx[m+42])
+            unidades_norm[:,m] = np.divide(unidades_norm[:,m],dx[m+42])
+    acumulado = np.cumsum(unidades,axis=1)
+    acumulado = (acumulado.T/acumulado[:,-1]).T
+    
+    for i in datos.Ensayo.unique():
+        fig = plt.figure(figsize = (16,9))
+        gs = gridspec.GridSpec(3, 3, height_ratios=[1,1,1])
+        ax15 = plt.subplot(gs[0,0])
+        ax30 = plt.subplot(gs[0,1])
+        ax45 = plt.subplot(gs[0,2])
+        ax60 = plt.subplot(gs[1,0])
+        ax75 = plt.subplot(gs[1,1])
+        ax100 = plt.subplot(gs[1,2])
+        ax200 = plt.subplot(gs[2,0])
+        
+        ejes = [ax15,ax30,ax45,ax60,ax75,ax100,ax200]
+        labels = [2,3,4,5,6,8,10,12,15,18]
+        c = 0
+
+        plt.suptitle('Ensayo ' + i + ' - ' +pd.DatetimeIndex(datos
+        [datos['Ensayo'] == i].Hora).strftime('%d/%m, %H:%M')[0], size=16)
+        
+        for eje in ejes:
+            ploteo = unidades[(datos['Visibilidad corregida (m)'] >= rangos[c]) &
+                            (datos['Visibilidad corregida (m)'] < rangos[c+1])]
+            ensayo = unidades[(datos['Visibilidad corregida (m)'] >= rangos[c]) &
+                            (datos['Visibilidad corregida (m)'] < rangos[c+1]) &
+                            (datos['Ensayo'] == i)]
+            
+            eje.set_title('Visibilidad de ' + str(rangos[c]) + ' a ' +
+                          str(rangos[c+1]) + ' m')
+            eje.set_xscale('log'); eje.grid(which = 'both')
+            eje.set_xlim(2,18);
+            eje.set_xlabel('Diámetro ($\mu$m)'); eje.set_ylabel('dN/dx');
+            eje.set_xticks(labels); eje.set_xticklabels(labels)
+            for j in range(ploteo.shape[0]):
+                eje.plot(diams_g,ploteo[j],
+                    c = 'black',alpha = 0.1, lw = 0.5)
+            for j in range(ensayo.shape[0]):
+                eje.plot(diams_g,ensayo[j],
+                    c = 'blue', alpha = 0.6, lw = 0.75)
+            c = c+1
+        plt.tight_layout()
+        plt.savefig(ruta_proces + 'Gráficos/Ensayos_Agosto/' + i + 'sin_norm.png')
+
+    return 
+
+def visib(datos, inicio, fin, rangos=[], rampa = 'mes'):
+    if rangos:
+        pass
+    else: 
+        for v in range(6):
+            rangos.append(round(np.quantile(datos['Visibilidad corregida (m)'],v/6),1))
+            rangos.append(2000)
+            
+    datos = preparar(datos,inicio,fin,rangos)
+            
+    diams_g = np.array([2.13,2.289,2.46,2.643,2.841,3.053,3.28,3.525,3.788,4.071,4.374,4.701,5.051,5.428,5.833,6.268,6.736,7.239,
+                   7.779,8.359,8.983,9.653,10.373,11.147,11.979,12.872,13.833,14.865,15.974,17.165,18.446])
+    diams = np.array([0.104,0.111,0.12,0.129,0.138,0.149,0.16,0.172,0.184,0.198,0.213,0.229,0.246,0.264,0.284,0.305,0.328,0.352,0.379,
+                 0.407,0.437,0.47,0.505,0.543,0.583,0.627,0.674,0.724,0.778,0.836,0.898,0.965,1.037,1.115,1.198,1.287,1.383,1.486,
+                 1.597,1.717,1.845,1.982,2.13,2.289,2.46,2.643,2.841,3.053,3.28,3.525,3.788,4.071,4.374,4.701,5.051,5.428,5.833,
+                 6.268,6.736,7.239,7.779,8.359,8.983,9.653,10.373,11.147,11.979,12.872,13.833,14.865,15.974,17.165,18.446])
+    dx = np.array([0.007,0.008,0.009,0.009,0.01,0.011,0.011,0.012,0.013,0.014,0.015,0.016,0.018,0.019,0.02,0.022,0.024,0.025,0.027
+              ,0.029,0.031,0.034,0.036,0.039,0.042,0.045,0.048,0.052,0.056,0.06,0.065,0.069,0.075,0.08,0.086,0.093,0.099,0.107,0.115
+              ,0.123,0.133,0.143,0.153,0.165,0.177,0.19,0.204,0.22,0.236,0.254,0.272,0.293,0.315,0.338,0.363,0.39,0.42,0.451,0.484
+              ,0.521,0.559,0.601,0.646,0.694,0.746,0.802,0.862,0.926,0.995,1.069,1.149,1.235,1.327])
       
+    if rampa == 'tempdisc':
+        datos['Temp_corr'] = datos['Temp_est'].apply(np.floor)
+    
     for v in range(len(rangos)-1):
         vis = datos[(datos['Visibilidad corregida (m)'] >= rangos[v]) &
         (datos['Visibilidad corregida (m)'] < rangos[v+1])]
         
-        
         ## RAMPA DE COLOR
-        color_labels = pd.DatetimeIndex(vis['Hora']).month.unique()
-        rgb_values = sns.color_palette("husl", len(color_labels))
+        if rampa == 'mes':
+            color_labels = pd.DatetimeIndex(vis['Hora']).month.unique()
+            rgb_values = sns.color_palette("tab10", len(color_labels))
+        if rampa == 'ensayo':
+            color_labels = vis['Ensayo'].unique()
+            rgb_values = sns.color_palette("tab10", len(color_labels))
+        if rampa == 'temp':
+            color_labels = natsorted(datos['Temp_est'].unique())
+            rgb_values = sns.color_palette("flare_r", len(color_labels))
+        if rampa == 'tempdisc':
+            vis['Temp_corr'] = vis['Temp_est'].apply(np.floor)
+            color_labels = natsorted(datos['Temp_corr'].unique())
+            rgb_values = sns.color_palette("flare", len(color_labels))
         color_map = dict(zip(color_labels, rgb_values))
         hand = []
-        for i in range(len(rgb_values)):
-            hand.append(mpatches.Patch(color=rgb_values[i], label=color_labels[i]))
+        if (rampa != 'temp') & (rampa != 'tempdisc'):
+            for i in range(len(rgb_values)):
+                hand.append(mpatches.Patch(color=rgb_values[i], label=color_labels[i]))
+        else:
+            if rampa == 'tempdisc':
+                for i in range(len(rgb_values)-1):
+                    hand.append(mpatches.Patch(color=rgb_values[i],
+                        label=str(color_labels[i]) + ' a ' + str(color_labels[i+1])))
+                hand.append(mpatches.Patch(color=rgb_values[i+1],
+                        label='>'+str(color_labels[i])))
+            if rampa == 'temp':
+                muestras = np.linspace(0,len(rgb_values)-1, 10,dtype=int)
+                for i in muestras:
+                    hand.append(mpatches.Patch(color=rgb_values[i],
+                        label=str(round(color_labels[i],2))))
         ##
         
         if (len(vis) > 0):
@@ -590,7 +672,8 @@ def visib(datos, inicio, fin, rangos=[]):
         ax_sin = plt.subplot(gs[2,0:2],sharex=ax)
         ax2 = plt.subplot(gs[0,1],sharex=ax)
         plt.suptitle('Visibilidad '+str(rangos[v]) + ' a ' + str(rangos[v+1]) + ' m - '
-                              + str(len(vis)) + ' registros', size=14)
+                              + str(len(vis)) + ' registros\n'+
+                              inicio + ' a ' + fin, size=14)
         ax.set_xscale('log'); ax.grid(which='both')
         ax_sin.grid(which='both')
         ax2.grid(which='both'), ax2.set_ylim(0,100)
@@ -599,22 +682,64 @@ def visib(datos, inicio, fin, rangos=[]):
         ax.set_xlabel('Diámetro ($\mu$m)'); ax.set_ylabel('dN/N/dx');
         ax_sin.set_xlabel('Diámetro ($\mu$m)'); ax_sin.set_ylabel('N* dN/N/dx');
         for i in range(unidades.shape[0]):
-            ax.plot(diams_g,unidades_norm[i],
+            if rampa == 'mes':
+                ax.plot(diams_g,unidades_norm[i],
+                        c = pd.DatetimeIndex(vis['Hora']).month.map(color_map)[i],
+                        alpha = 0.7, lw = 0.5)
+                ax_sin.plot(diams_g,unidades[i],
                     c = pd.DatetimeIndex(vis['Hora']).month.map(color_map)[i],
-                    alpha = 0.5, lw = 0.5)
-            ax_sin.plot(diams_g,unidades[i],
+                    alpha = 0.7, lw = 0.5)
+                ax2.plot(diams_g,100*acumulado[i],
                     c = pd.DatetimeIndex(vis['Hora']).month.map(color_map)[i],
-                    alpha = 0.5, lw = 0.5)
-            ax2.plot(diams_g,100*acumulado[i],
-                    c = pd.DatetimeIndex(vis['Hora']).month.map(color_map)[i],
-                    alpha = 0.5, lw = 0.5)
+                    alpha = 0.7, lw = 0.5)       
+            if rampa == 'ensayo':
+                ax.plot(diams_g,unidades_norm[i],
+                        c = vis['Ensayo'].map(color_map)[vis.index[i]],
+                        alpha = 0.7, lw = 0.5)
+                ax_sin.plot(diams_g,unidades[i],
+                    c = vis['Ensayo'].map(color_map)[vis.index[i]],
+                    alpha = 0.7, lw = 0.5)
+                ax2.plot(diams_g,100*acumulado[i],
+                    c = vis['Ensayo'].map(color_map)[vis.index[i]],
+                    alpha = 0.7, lw = 0.5)
+            if rampa == 'tempdisc':
+                ax.plot(diams_g,unidades_norm[i],
+                        c = vis['Temp_corr'].map(color_map)[vis.index[i]],
+                        alpha = 0.7, lw = 0.5)
+                ax_sin.plot(diams_g,unidades[i],
+                    c = vis['Temp_corr'].map(color_map)[vis.index[i]],
+                    alpha = 0.7, lw = 0.5)
+                ax2.plot(diams_g,100*acumulado[i],
+                    c = vis['Temp_corr'].map(color_map)[vis.index[i]],
+                    alpha = 0.7, lw = 0.5)
+            if rampa == 'temp':
+                ax.plot(diams_g,unidades_norm[i],
+                        c = vis['Temp_est'].map(color_map)[vis.index[i]],
+                        alpha = 0.7, lw = 0.5)
+                ax_sin.plot(diams_g,unidades[i],
+                    c = vis['Temp_est'].map(color_map)[vis.index[i]],
+                    alpha = 0.7, lw = 0.5)
+                ax2.plot(diams_g,100*acumulado[i],
+                    c = vis['Temp_est'].map(color_map)[vis.index[i]],
+                    alpha = 0.7, lw = 0.5)
+        if rampa == 'mes':
+            ax.legend(handles=hand,title='Mes',loc='upper right')
+        if rampa == 'ensayo':
+            ax.legend(handles=hand,title='Ensayo',loc='upper right')
+        if rampa == 'temp':
+            ax.legend(handles=hand,title='Temperatura (ºC)',loc='upper right')
+            ax_sin.legend(handles=hand,title='Temperatura (ºC)',loc='upper right')
         ax.plot(diams_g,media_norm,lw=2,color='red',label='Media')
         ax_sin.plot(diams_g,media,lw=2,color='red',label='Media')
         ax2.plot(diams_g,100*media_acum,lw=2,color='red',label='Media')
-        ax.legend(handles=hand,title='Mes',loc='upper right')
-        ax_sin.legend(handles=hand,title='Mes',loc='upper right')
+        if rampa == 'mes':
+            ax_sin.legend(handles=hand,title='Mes',loc='upper right')
+        if rampa == 'ensayo':
+            ax_sin.legend(handles=hand,title='Ensayo',loc='upper right')
         labels = [2,3,4,5,6,8,10,12,15,18]
         ax.set_xticks(labels); ax.set_xticklabels(labels)
+        plt.savefig(ruta_proces + 'Gráficos/' + str(rangos[v]) + '_'
+                    + str(rangos[v+1])+ '.png')
 
 ########################
 ########################
@@ -624,8 +749,13 @@ def visib(datos, inicio, fin, rangos=[]):
 
 ruta_proces = 'C:\\Users\\miguel.anton\\Desktop\\NIEBLA\\Ensayos procesados\\'
 datos = pd.read_csv(ruta_proces + 'database_modif.csv', delimiter = ";", decimal = ".")
+datos.dropna(inplace=True)
 
 rang = [15,30,45,60,75,100,200,1000]
-visib(datos,inicio='01/06/2021',fin='31/07/2021',rangos=rang)
 
-#datos=distribuciones(datos,ensayos = '8.',inicio='01/09/2021',fin='30/09/2021',rangos=rang)
+#separar_ensayos(datos,inicio='01/08/2021',fin='31/08/2021',rangos=rang)
+
+visib(datos,inicio='01/06/2021',fin='30/06/2021',rangos=rang,rampa='temp')
+
+#datos=distribuciones_cajas(datos,ensayos = '8.',inicio='20/08/2021',
+#                           fin='31/08/2021',rangos=rang)
