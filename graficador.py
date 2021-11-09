@@ -8,7 +8,6 @@ import os
 import csv
 import pandas as pd
 import numpy as np
-import math
 import scipy.stats as stats
 import datetime # formato fecha
 import seaborn as sns
@@ -112,15 +111,6 @@ def filtrador(datos,ensayos='8.',inicio = '01/06/2021', fin = '31/07/2021',cap =
         if (datos.loc[i,'Visibilidad corregida (m)'] > cap):
             datos.loc[i,'Visibilidad corregida (m)'] = cap
             
-    return datos
-
-def filtrar_corregida(datos,rangos):
-    lim = [15,15,15,15,25,25,50]
-    for v in range(len(rangos)-1):
-        datos.drop(datos[(datos['Visibilidad corregida (m)'] >= rangos[v]) &
-            (datos['Visibilidad corregida (m)'] < rangos[v+1]) &
-            (abs(datos['Visibilidad corregida (m)']-datos['Visibilidad (m)']) > lim[v])]
-                   .index, inplace = True)
     return datos
 
 #########################
@@ -485,6 +475,15 @@ def distribuciones_cajas(datos, ensayos = '8.', inicio = '01/06/2021', fin = '31
 #######################
 #######################
 
+def filtrar_corregida(datos,rangos):
+    lim = [15,15,15,15,25,25,50]
+    for v in range(len(rangos)-1):
+        datos.drop(datos[(datos['Visibilidad corregida (m)'] >= rangos[v]) &
+            (datos['Visibilidad corregida (m)'] < rangos[v+1]) &
+            (abs(datos['Visibilidad corregida (m)']-datos['Visibilidad (m)']) > lim[v])]
+                   .index, inplace = True)
+    return datos
+
 def niebla_only(datos,rangos,corregido=False):
     datos.dropna(inplace=True)
     datos.drop(datos[datos['Visibilidad corregida (m)'] == 0].index, inplace=True)
@@ -501,8 +500,28 @@ def caract_only(datos,rangos,corregido=True):
         filtrar_corregida(datos,rangos)
     return datos
 
-def preparar(datos,inicio='01/06/2021',fin='31/07/2021',rangos=[]):
-    datos = caract_only(datos,rangos,corregido=True)
+def ensayos_only(datos,rangos,corregido=False):
+    datos.dropna(inplace=True)
+    datos.drop(datos[datos['Visibilidad corregida (m)'] == 0].index, inplace=True)
+    datos.drop(datos[(datos['Ensayo'].astype(str).str[0] == '8')
+                     | (datos['Ensayo'].astype(str).str[0] == '9')
+                     | (datos['Ensayo'].astype(str).str[0:2] == 'EC')].index,
+               inplace = True)
+    if corregido:
+        filtrar_corregida(datos,rangos)
+    return datos
+
+def preparar(datos,inicio='01/06/2021',fin='31/07/2021',rangos=[],
+             soloniebla=False, ensayos=False):
+    if soloniebla:
+        if ensayos == False:
+            datos = caract_only(datos,rangos,corregido=True)
+        else:
+            datos = niebla_only(datos,rangos,corregido=True)
+    else:
+        if ensayos:
+            datos = ensayos_only(datos,rangos,corregido=True)
+            
     inicio = datetime.datetime.strptime(inicio,'%d/%m/%Y')
     fin = datetime.datetime.strptime(fin,'%d/%m/%Y')
     for i in datos.index:
@@ -511,7 +530,7 @@ def preparar(datos,inicio='01/06/2021',fin='31/07/2021',rangos=[]):
     datos.drop(datos[datos['Prec_mensual'] == -9999].index, inplace=True)
     return datos
 
-def separar_ensayos(datos, inicio, fin, rangos=[]):
+def separar_ensayos(datos, inicio, fin, rangos=[],soloniebla=True):
     if rangos:
         pass
     else: 
@@ -519,7 +538,7 @@ def separar_ensayos(datos, inicio, fin, rangos=[]):
             rangos.append(round(np.quantile(datos['Visibilidad corregida (m)'],v/6),1))
             rangos.append(2000)
             
-    datos = preparar(datos,inicio,fin,rangos=[])
+    datos = preparar(datos,inicio,fin,rangos,soloniebla)
             
     diams_g = np.array([2.13,2.289,2.46,2.643,2.841,3.053,3.28,3.525,3.788,4.071,4.374,4.701,5.051,5.428,5.833,6.268,6.736,7.239,
                    7.779,8.359,8.983,9.653,10.373,11.147,11.979,12.872,13.833,14.865,15.974,17.165,18.446])
@@ -564,9 +583,9 @@ def separar_ensayos(datos, inicio, fin, rangos=[]):
         [datos['Ensayo'] == i].Hora).strftime('%d/%m, %H:%M')[0], size=16)
         
         for eje in ejes:
-            ploteo = unidades[(datos['Visibilidad corregida (m)'] >= rangos[c]) &
+            ploteo = unidades_norm[(datos['Visibilidad corregida (m)'] >= rangos[c]) &
                             (datos['Visibilidad corregida (m)'] < rangos[c+1])]
-            ensayo = unidades[(datos['Visibilidad corregida (m)'] >= rangos[c]) &
+            ensayo = unidades_norm[(datos['Visibilidad corregida (m)'] >= rangos[c]) &
                             (datos['Visibilidad corregida (m)'] < rangos[c+1]) &
                             (datos['Ensayo'] == i)]
             
@@ -574,7 +593,7 @@ def separar_ensayos(datos, inicio, fin, rangos=[]):
                           str(rangos[c+1]) + ' m')
             eje.set_xscale('log'); eje.grid(which = 'both')
             eje.set_xlim(2,18);
-            eje.set_xlabel('Diámetro ($\mu$m)'); eje.set_ylabel('dN/dx');
+            eje.set_xlabel('Diámetro ($\mu$m)'); eje.set_ylabel('dN/N/dx');
             eje.set_xticks(labels); eje.set_xticklabels(labels)
             for j in range(ploteo.shape[0]):
                 eje.plot(diams_g,ploteo[j],
@@ -584,7 +603,7 @@ def separar_ensayos(datos, inicio, fin, rangos=[]):
                     c = 'blue', alpha = 0.6, lw = 0.75)
             c = c+1
         plt.tight_layout()
-        plt.savefig(ruta_proces + 'Gráficos/Ensayos_Agosto/' + i + 'sin_norm.png')
+        plt.savefig(ruta_proces + 'Gráficos/Ensayos_Junio/' + i + '_norm.png')
 
     return 
 
@@ -741,6 +760,104 @@ def visib(datos, inicio, fin, rangos=[], rampa = 'mes'):
         plt.savefig(ruta_proces + 'Gráficos/' + str(rangos[v]) + '_'
                     + str(rangos[v+1])+ '.png')
 
+def ensayos_disipacion(datos, inicio, fin, rangos=[]):
+    if rangos:
+        pass
+    else: 
+        for v in range(6):
+            rangos.append(round(np.quantile(datos['Visibilidad corregida (m)'],v/6),1))
+            rangos.append(2000)
+            
+    datos = preparar(datos,inicio,fin,rangos,ensayos=True)
+            
+    diams_g = np.array([2.13,2.289,2.46,2.643,2.841,3.053,3.28,3.525,3.788,
+                        4.071,4.374,4.701,5.051,5.428,5.833,6.268,6.736,7.239,
+                        7.779,8.359,8.983,9.653,10.373,11.147,11.979,12.872,
+                        13.833,14.865,15.974,17.165,18.446
+                        ])
+    diams = np.array([0.104,0.111,0.12,0.129,0.138,0.149,0.16,0.172,0.184,
+                      0.198,0.213,0.229,0.246,0.264,0.284,0.305,0.328,0.352,
+                      0.379,0.407,0.437,0.47,0.505,0.543,0.583,0.627,0.674,
+                      0.724,0.778,0.836,0.898,0.965,1.037,1.115,1.198,1.287,
+                      1.383,1.486,1.597,1.717,1.845,1.982,2.13,2.289,2.46,
+                      2.643,2.841,3.053,3.28,3.525,3.788,4.071,4.374,4.701,
+                      5.051,5.428,5.833,6.268,6.736,7.239,7.779,8.359,8.983,
+                      9.653,10.373,11.147,11.979,12.872,13.833,14.865,15.974,
+                      17.165,18.446
+                      ])
+    dx = np.array([0.007,0.008,0.009,0.009,0.01,0.011,0.011,0.012,0.013,0.014,
+                   0.015,0.016,0.018,0.019,0.02,0.022,0.024,0.025,0.027,0.029,
+                   0.031,0.034,0.036,0.039,0.042,0.045,0.048,0.052,0.056,0.06,
+                   0.065,0.069,0.075,0.08,0.086,0.093,0.099,0.107,0.115,0.123,
+                   0.133,0.143,0.153,0.165,0.177,0.19,0.204,0.22,0.236,0.254,
+                   0.272,0.293,0.315,0.338,0.363,0.39,0.42,0.451,0.484,0.521,
+                   0.559,0.601,0.646,0.694,0.746,0.802,0.862,0.926,0.995,1.069,
+                   1.149,1.235,1.327
+                   ])
+    
+    if (len(datos) > 0):
+        suma_gruesos = np.empty((len(datos),1))
+        unidades = np.array(datos.iloc[:,57:88])
+        unidades_norm = np.array(datos.iloc[:,57:88])
+        for k in range(unidades.shape[0]):
+            suma_gruesos[k] = np.sum(unidades[k,:])
+            unidades_norm[k,:] = np.divide(unidades[k,:],suma_gruesos[k])
+        for m in range(unidades.shape[1]):
+            unidades[:,m] = np.divide(unidades[:,m],dx[m+42])
+            unidades_norm[:,m] = np.divide(unidades_norm[:,m],dx[m+42])
+    acumulado = np.cumsum(unidades,axis=1)
+    acumulado = (acumulado.T/acumulado[:,-1]).T
+    
+    for i in datos.Ensayo.unique():
+        fig = plt.figure(figsize = (16,9))
+        gs = gridspec.GridSpec(3, 3, height_ratios=[1,1,1])
+        ax15 = plt.subplot(gs[0,0])
+        ax30 = plt.subplot(gs[0,1])
+        ax45 = plt.subplot(gs[0,2])
+        ax60 = plt.subplot(gs[1,0])
+        ax75 = plt.subplot(gs[1,1])
+        ax100 = plt.subplot(gs[1,2])
+        ax200 = plt.subplot(gs[2,0])
+        
+        ejes = [ax15,ax30,ax45,ax60,ax75,ax100,ax200]
+        labels = [2,3,4,5,6,8,10,12,15,18]
+        c = 0
+
+        plt.suptitle('Ensayo ' + i + ' - ' +pd.DatetimeIndex(datos
+        [datos['Ensayo'] == i].Hora).strftime('%d/%m, %H:%M')[0], size=16)
+        
+        for eje in ejes:
+            ploteo = unidades[(datos['Visibilidad corregida (m)'] >= rangos[c])
+                            & (datos['Visibilidad corregida (m)'] < rangos[c+1])]
+            nieblainic = unidades[(datos['Visibilidad corregida (m)'] >= rangos[c])
+                            & (datos['Visibilidad corregida (m)'] < rangos[c+1]) &
+                            (datos['Ensayo'] == i) & (datos['Tiempo (min)'] < 9.5)]
+            durante = unidades[(datos['Visibilidad corregida (m)'] >= rangos[c])
+                            & (datos['Visibilidad corregida (m)'] < rangos[c+1]) &
+                            (datos['Ensayo'] == i) & (datos['Tiempo (min)'] > 9.5)
+                            & (datos['Tiempo (min)'] < 29.5)]
+            
+            eje.set_title('Visibilidad de ' + str(rangos[c]) + ' a ' +
+                          str(rangos[c+1]) + ' m')
+            eje.set_xscale('log'); eje.grid(which = 'both')
+            eje.set_xlim(2,18);
+            eje.set_xlabel('Diámetro ($\mu$m)'); eje.set_ylabel('N * dN/N/dx');
+            eje.set_xticks(labels); eje.set_xticklabels(labels)
+            # for j in range(ploteo.shape[0]):
+            #     eje.plot(diams_g,ploteo[j],
+            #         c = 'black',alpha = 0.1, lw = 0.5)
+            for j in range(nieblainic.shape[0]):
+                eje.plot(diams_g,nieblainic[j],
+                    c = 'black', alpha = 0.6, lw = 0.75)
+            for j in range(durante.shape[0]):
+                eje.plot(diams_g,durante[j],
+                    c = 'blue', alpha = 0.6, lw = 0.75)
+            c = c+1
+        plt.tight_layout()
+        plt.savefig(ruta_proces + 'Gráficos/Ensayos_disipacion/' + i + '_sinnorm.png')
+
+    return
+
 ########################
 ########################
 #### Programa principal
@@ -753,9 +870,9 @@ datos.dropna(inplace=True)
 
 rang = [15,30,45,60,75,100,200,1000]
 
-#separar_ensayos(datos,inicio='01/08/2021',fin='31/08/2021',rangos=rang)
+ensayos_disipacion(datos,inicio='01/06/2021',fin='30/09/2021',rangos=rang)
 
-visib(datos,inicio='01/06/2021',fin='30/06/2021',rangos=rang,rampa='temp')
+#visib(datos,inicio='01/06/2021',fin='30/06/2021',rangos=rang,rampa='temp')
 
 #datos=distribuciones_cajas(datos,ensayos = '8.',inicio='20/08/2021',
 #                           fin='31/08/2021',rangos=rang)
