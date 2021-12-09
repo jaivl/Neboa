@@ -17,7 +17,7 @@ Exemplos dos resultados obtidos en https://drive.google.com/drive/u/0/folders/1m
   - debuxa gráficos de masas, superficies, etc, con rampas de cor clasificatorias
   - etc
 
-**machine_niebla:** Aplicacións de aprendizaxe automática ao análise das néboas do Fiouco - predicción mediante bosques aleatorios e gradient-boosters, clasificación en clústeres mediante algoritmo k-fold, etc. Paquetes principais: sklearn. Formato Jupyter Python Notebook.
+**machine_niebla:** Aplicacións de aprendizaxe automática ao análise das néboas do Fiouco - predicción mediante bosques aleatorios e gradient-boosters, clasificación en clústeres mediante algoritmo k-fold, etc. Paquetes principais: sklearn.
 
 **rosinrammler:** Calcula a distribución de Rosin-Rammler para cada minuto de ensaios de só-néboa, exporta gráficos duales coas pendentes do gráfico log/loglog (sí, dous logs no eixo y) e coa distribución teórica. Paquetes principais: pandas, matplotlib, seaborn. Formato Jupyter Python Notebook.
 
