@@ -7,6 +7,8 @@ Isto inclúe, entre outros, programas de graficado, de análise de espectrometr�
 
 **analizador_video:** Analiza a visibilidade teórica dos vídeos de ensaio dispoñibles, exporta un vídeo acelerado x8 anotando a visibilidade instantánea cada 10 segundos, ademáis dunha táboa cos resultados. Paquetes principais: opencv (cv2). Formato iPython.
 
+Exemplos dos resultados obtidos en https://drive.google.com/drive/u/0/folders/1mvqNDyd0jeS0wm13GLxfEWV74Ron2kU1
+
 **fractal:** Calcula a distribución fractal para cada minuto de ensaios de só-néboa, exporta gráficos duales cos gráficos log/log e a evolución da dimensión fractal no tempo. Paquetes principais: pandas, matplotlib, seaborn. Formato Jupyter Python Notebook.
 
 **graficador:** Programa estándar de graficado, multifunción:
